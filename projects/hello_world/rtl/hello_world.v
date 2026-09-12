@@ -5,7 +5,9 @@ module hello_world (
 );
 
     wire clk;
-    IBUFDS clk_ibufds (
+    IBUFDS #(
+        .DIFF_TERM("TRUE")
+    ) clk_ibufds (
         .I  (clk_125_p),
         .IB (clk_125_n),
         .O  (clk)

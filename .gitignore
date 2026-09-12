@@ -14,3 +14,4 @@ vivado*.log
 webtalk*.jou
 webtalk*.log
 *.backup.log
+clockInfo.txt
