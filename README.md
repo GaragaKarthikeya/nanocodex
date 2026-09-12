@@ -1,6 +1,7 @@
-# fpga
+# nanocodex
 
-Personal FPGA workstation repo. Layout:
+Personal FPGA research workstation. Base for board bring-up and future work
+(RowHammer, near/in-memory compute) on real hardware. Layout:
 
 ```
 boards/<board>/          board-level facts, reused across every project
