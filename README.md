@@ -40,15 +40,27 @@ make new PROJ=my_new_design
 
 ## Verifying pins on a new board
 
-Manuals can be wrong (see `boards/zcu104/docs/errata.md` for a real example that cost
-hours: UG1267 lists the wrong pins for the 125 MHz clock). Before writing a board's
-`xdc/` files as ground truth:
+Manuals can be wrong, and not just as a one-off typo — UG1267 for the zcu104 has
+*multiple* known text/schematic mismatches (clock pins, DDR4 SODIMM pins, FMC bank
+assignments) that were never fixed in the PDF across its whole revision history. See
+`boards/zcu104/docs/errata.md` for the one that cost hours here. **Don't hand-transcribe
+pin tables from a PDF as ground truth.** In order of trust:
 
-1. Cross-check the manual's pin table against a rendered image of the actual PDF page
-   (text extraction can misalign columns) — but don't stop there.
-2. Web-search `"<board name>" "<net name>" xdc` — community constraint files and
-   vendor support-forum threads often have known corrections.
-3. Bring up new pins incrementally and prove each one independently:
+1. **Official board_part files first.** Xilinx publishes Apache-2.0 board definitions
+   (schematic-derived) at `github.com/Xilinx/XilinxBoardStore` for most eval boards.
+   Vendor the relevant `boards/<board>/<version>/` directory into
+   `boards/<board>/vendor/board_files/<board>/`, register it in `board.tcl` via
+   `board.repoPaths`, and query it with `scripts/lookup_pin.sh <board> <net-name>`
+   before typing anything out of a manual by hand. This is real schematic data, not
+   prose that can go stale.
+2. If a net isn't covered by the official board interfaces (common for pins not tied
+   to a named component, e.g. general-purpose clocks) — cross-check the manual's pin
+   table against a *rendered image* of the actual PDF page (text extraction can
+   misalign columns), then web-search `"<board name>" "<net name>" xdc` — community
+   constraint files and vendor support-forum threads often have the known correction
+   already documented.
+3. Bring up new pins incrementally and prove each one independently regardless of
+   source:
    - LEDs/outputs: drive them to a constant value first, no clock involved.
    - A clock: latch it into a register on an edge you control (e.g. a pushbutton)
      and read the value back — if repeated latches at different times always read

@@ -1,8 +1,15 @@
 # ZCU104 Pin/Net Reference
 
-Primary source: `ug1267-zcu104-eval-bd.pdf` (UG1267 rev 1.1, Oct 2018), cross-checked
-against the AMD/Xilinx support forum and community-maintained constraint files where
-the manual is known to be wrong — see `errata.md` for the one place that mattered.
+Primary source for anything the official board_part covers:
+`boards/zcu104/vendor/board_files/zcu104/1.1/` (Apache-2.0, from
+`github.com/Xilinx/XilinxBoardStore`) — schematic-derived, not manual text. Query it
+with `scripts/lookup_pin.sh zcu104 <net-name>`.
+
+For nets not covered there (e.g. CLK_125): `ug1267-zcu104-eval-bd.pdf` (UG1267 rev
+1.1, Oct 2018), cross-checked against the AMD/Xilinx support forum and
+community-maintained constraint files where the manual is known to be wrong — see
+`errata.md` for the one that mattered here, and for why UG1267 text alone isn't
+trustworthy on this board.
 
 ## Clock net: CLK_125 — verified working pins
 

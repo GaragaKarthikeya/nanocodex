@@ -44,6 +44,21 @@ itself before spending more time re-verifying the design. A quick web search for
 board name + net name often surfaces existing errata or community-corrected XDC files
 faster than re-deriving everything from the manual.
 
+**Structural fix (see `boards/zcu104/vendor/board_files/`):** UG1267 is known to have
+several more of these text/schematic mismatches beyond just CLK_125 (DDR4 SODIMM pins,
+FMC connector bank assignments, phantom PS-side LEDs — see AMD/Xilinx support forum
+threads on "ZCU104 ... documentation mismatch"). The user guide text was never
+re-published to fix any of them. **The golden source is the official board_part
+definition (Apache-2.0, from `github.com/Xilinx/XilinxBoardStore`), not the PDF.**
+It's vendored into this repo at `boards/zcu104/vendor/board_files/zcu104/1.1/`, wired
+into `board.tcl` via `board.repoPaths`, and queryable with
+`scripts/lookup_pin.sh zcu104 <net-name>` — always run that first for any new net
+before typing a pin number out of the PDF by hand. It won't have every discrete pin
+(CLK_125 isn't in it, for instance — the official interfaces only cover nets tied to
+a named component/interface, like LEDs, DDR4, or the 300 MHz clock), but anything it
+does cover is schematic-derived and trustworthy; anything it doesn't cover still needs
+the manual-plus-web-search treatment described in `README.md`.
+
 ## 3. LVDS clock inputs may need explicit on-chip termination
 
 `CLK_125` (and likely other board-level LVDS inputs routed through non-dedicated
