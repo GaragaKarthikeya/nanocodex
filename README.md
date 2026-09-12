@@ -30,6 +30,21 @@ make new PROJ=my_new_design
 
 `PROJ` and `BOARD` default to `hello_world` and `zcu104`.
 
+## Offloading builds to a remote workstation
+
+Synth/impl/bitgen can run on a beefier remote machine over Tailscale instead of
+locally, since the board's `hw_server` (and therefore `make program`) has to stay
+local anyway wherever the board is physically plugged in:
+
+```
+make remote-build PROJ=hello_world BOARD=zcu104   # runs Vivado on the remote host, syncs the .bit back
+make program PROJ=hello_world BOARD=zcu104        # programs the local board as usual
+```
+
+Defaults to `redhatacademy23` (24 cores, 62GB RAM) as `digital3` over Tailscale SSH.
+Override with `REMOTE_HOST`, `REMOTE_USER`, `REMOTE_DIR`, or `REMOTE_VIVADO_SETTINGS`
+env vars — see `scripts/remote_build.sh`.
+
 ## Adding a new board
 
 1. `mkdir -p boards/<board>/{xdc,docs}`
