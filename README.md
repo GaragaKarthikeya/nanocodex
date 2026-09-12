@@ -89,6 +89,27 @@ starting over. Defaults to a specific machine on our Tailscale network; override
 with `REMOTE_HOST` / `REMOTE_USER` / `REMOTE_DIR` env vars if you're pointing it
 somewhere else (see `scripts/remote_build.sh` for details).
 
+## Watching a build's progress
+
+**Local build (`make build`):** Vivado's output prints directly to your terminal
+as it runs — nothing extra needed, just watch it or scroll back through it after.
+
+**Remote build (`make remote-build`):** the log streams live to your terminal the
+same way, but since the build actually runs on the far machine independent of
+whether you're watching, you've got two more options:
+
+- **Reattach to the live stream:** just run `make remote-build` again with the
+  same `PROJ`/`BOARD` — if a build is already running, it detects that and starts
+  streaming the log from the top instead of launching a new build.
+- **Quick peek without attaching:** `make remote-status PROJ=hello_world` — tells
+  you whether it's still running and shows the last 15 lines, without committing
+  to watching the whole thing. Good for "did it finish yet?" checks from another
+  terminal, your phone over SSH, etc.
+
+Either way, the underlying log is a plain file on the remote machine at
+`<proj_dir>/build/build.log` — `ssh`-ing in and `tail -f`-ing it yourself works
+too, if you want.
+
 ## Adding a new board
 
 1. `mkdir -p boards/<board>/{xdc,docs}`
