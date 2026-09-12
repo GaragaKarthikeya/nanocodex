@@ -156,3 +156,72 @@ trust:
 
 - **hello_world** — the walkthrough example above: blinks the 4 GPIO LEDs in a
   binary counter pattern off the board's 125 MHz clock.
+
+## Research roadmap: RowHammer / near-memory compute
+
+The reason this board is here at all, beyond board bring-up practice.
+
+**What's on the zcu104 relevant to this.** It's a Zynq UltraScale+ MPSoC — a real
+FPGA fabric (the PL) plus hardened ARM cores (the PS) on one chip. Two DDR4
+interfaces exist: a 2GB PS-side DDR4 soldered on the board (goes through the ARM
+cores' fixed memory controller — not useful here, no low-level access), and a
+PL-side DDR4 SODIMM socket (J1) wired straight into FPGA fabric banks 64/65/66 —
+**this is the one that matters**, because it means a custom memory controller
+written in our own RTL can get direct, cycle-precise control over row activation
+and refresh timing, which is exactly what RowHammer work and near-memory compute
+both require and what software running on a normal CPU/OS cannot give you.
+
+**The DIMM.** The board ships with the PL-side socket empty. Needed: a 4GB DDR4-2666
+260-pin SODIMM, single rank, x8 organization, unbuffered, non-ECC, 1.2V (a Crucial
+`CT4G4SFS8266` or equivalent — Crucial is Micron's own consumer brand, matching the
+board's originally-recommended Micron part). No DIMM in the socket means no PL-side
+DRAM work is possible at all — this is the literal prerequisite, not an optimization.
+
+**RowHammer vs. near-memory compute — same starting point, different destination.**
+Both need the DIMM installed and a working custom PL-side memory controller (built
+from Xilinx's MIG IP, then calibrated and verified with a memory test before
+anything else). They diverge after that:
+- *RowHammer* is about repeatedly activating one DRAM row until electrical
+  interference flips bits in a neighboring row — the research problem is crafting
+  an access *pattern* sophisticated enough to work despite modern DRAM's built-in
+  defenses (Target Row Refresh).
+- *Near-memory compute* is about placing actual computation (not just an attack
+  pattern) in the data path near or inside memory, instead of shipping all data to
+  a CPU first — an architecture problem, not an adversarial-timing one.
+
+**What the literature actually says (so buying a DIMM isn't overthought).** The
+major public RowHammer studies (TRRespass 2020, Blacksmith 2021, U-TRR 2021,
+ZenHammer 2024) deliberately anonymize exact vendor/part numbers — there's no
+"buy this exact SKU, guaranteed vulnerable" list. But their actual finding is
+useful: across every DDR4 module they tested (all three major vendors, 2016-2020
+manufacture dates), a sufficiently sophisticated access pattern broke *all* of
+them — no DIMM in any of these studies was fully immune. So the DIMM choice isn't
+the hard part; a naive/simple hammering pattern likely won't produce flips on a
+modern module, and building a pattern good enough to beat TRR is the actual open
+engineering problem — and the more interesting one, since it's squarely in RTL/
+FPGA territory rather than a component-shopping problem.
+
+**Where a genuine contribution is more likely to come from.** Not "discover a new
+RowHammer pattern" — that's a crowded space with research groups running automated
+fuzzers across racks of DIMMs for weeks, hard to beat with one board and one DIMM.
+More realistic: something that leans on what this specific setup uniquely gives —
+full custom control of the memory controller — like characterizing a mitigation's
+behavior at a timing precision software-based hammering can't reach, or treating
+the near-memory-compute RTL itself as the contribution rather than an attack.
+Getting there needs real literature depth (dozens of papers, not a handful) before
+a genuine gap is recognizable versus rediscovering something already published.
+
+**What this is worth even without a novel result.** Real RTL/Vivado fluency, direct
+DDR4/MIG experience (genuinely rare at the undergrad level), and hardware-debugging
+discipline under real ambiguity (see `boards/zcu104/docs/errata.md` — that CLK_125
+saga was this skill in action) are all concrete, demonstrable outcomes on their
+own. Computer architecture research in practice spans both this RTL/hardware end
+*and* a Python/simulator end (gem5, Ramulator, ChampSim, used for fast design-space
+exploration once a mechanism is understood) — they're complementary, not
+competing, and the real published RowHammer/DRAM work tends to use both at
+different stages.
+
+**Concrete next milestone:** install the DIMM, regenerate the Xilinx MIG IP core
+for its exact spec, and get its built-in memory test passing — that's the proof
+the PL-side memory path works at all, before any RowHammer- or compute-specific
+RTL gets built on top of it.
