@@ -1,105 +1,137 @@
 # nanocodex
 
-Personal FPGA research workstation. Base for board bring-up and future work
-(RowHammer, near/in-memory compute) on real hardware. Layout:
+A personal FPGA research workstation. This isn't a one-off project — it's meant to
+keep growing: more boards, more projects, eventually RowHammer / near-memory-compute
+work. This doc walks through how it's organized and how to actually use it, in the
+order you'd type things.
+
+## The shape of the repo
 
 ```
-boards/<board>/          board-level facts, reused across every project
-  board.tcl                 part number and other board identity settings
-  xdc/                       fixed hardware nets (clocks, LEDs, ...) as separate .xdc files
-  docs/                      datasheets / user guides / pin-mapping notes
-
-projects/<project>/      one FPGA design
-  rtl/                      Verilog sources
-  <project>.xdc              project-specific pin constraints only
-  build/                    generated bitstream + reports (gitignored)
-
-scripts/                  Vivado automation, board-agnostic
-  build.tcl                 synth -> impl -> bitstream, given a project + board dir
-  program.tcl                program a bitstream over JTAG
-  new_project.sh             scaffold a new project directory
+boards/<board>/          everything specific to one physical board, shared by every project that targets it
+projects/<project>/      one FPGA design (your Verilog + its pin constraints)
+scripts/                 the automation that turns a project into a bitstream and gets it onto the board
 ```
 
-## Usage
+The idea: a `project` is just Verilog + a couple of project-only pin constraints.
+Everything about the *board* (which chip, which pin is which LED, which clock is
+available) lives once in `boards/<board>/` and gets reused by every project — you
+never re-type a pin number for a net you've already wired up in a previous project.
+
+## Your first build (using the example project)
+
+There's already one working project, `hello_world`, which blinks the board's 4 LEDs
+in a binary counter pattern off its 125 MHz clock. Walking through it end to end:
+
+**1. Build it.**
 
 ```
-make build PROJ=hello_world BOARD=zcu104
-make program PROJ=hello_world BOARD=zcu104
-make new PROJ=my_new_design
+make build
 ```
 
-`PROJ` and `BOARD` default to `hello_world` and `zcu104`.
+This runs `scripts/build.tcl` in Vivado (headless, no GUI) using the defaults —
+`PROJ=hello_world BOARD=zcu104`. It reads the Verilog in `projects/hello_world/rtl/`,
+applies the pin constraints from `boards/zcu104/xdc/` and
+`projects/hello_world/hello_world.xdc`, and runs synthesis → implementation →
+bitstream generation. Output lands in `projects/hello_world/build/hello_world.bit`
+(this folder is gitignored — it's a build artifact, not something to commit).
 
-## Offloading builds to a remote workstation
-
-Synth/impl/bitgen can run on a beefier remote machine over Tailscale instead of
-locally, since the board's `hw_server` (and therefore `make program`) has to stay
-local anyway wherever the board is physically plugged in:
+**2. Program the board.**
 
 ```
-make remote-build PROJ=hello_world BOARD=zcu104   # runs Vivado on the remote host, syncs the .bit back
-make program PROJ=hello_world BOARD=zcu104        # programs the local board as usual
+make program
 ```
 
-Defaults to `redhatacademy23` (24 cores, 62GB RAM) as `digital3` over Tailscale SSH.
-Override with `REMOTE_HOST`, `REMOTE_USER`, `REMOTE_DIR`, or `REMOTE_VIVADO_SETTINGS`
-env vars — see `scripts/remote_build.sh`.
+This loads that `.bit` file onto the physically-connected board over JTAG (USB).
+Needs `hw_server` running and the board connected to *this* machine specifically —
+programming can't be done remotely, only building can (see below).
+
+**3. Check it worked.** The 4 LEDs on the board should be visibly counting in
+binary. If you build a different project or board, override the defaults:
+
+```
+make build PROJ=my_project BOARD=zcu104
+make program PROJ=my_project BOARD=zcu104
+```
+
+## Starting your own project
+
+```
+make new PROJ=my_project
+```
+
+This scaffolds `projects/my_project/rtl/my_project.v` (a stub module wired to the
+board's clock, ready to fill in) and `projects/my_project/my_project.xdc` (empty —
+only add pins here that are *specific to this project*; board-level pins like the
+clock and LEDs are already pulled in automatically by `build.tcl`). Then:
+
+```
+make build PROJ=my_project
+make program PROJ=my_project
+```
+
+## Offloading a build to a bigger machine
+
+Synthesis/implementation can be slow once designs get bigger than a blinky. If you
+have another machine on the same Tailscale network with Vivado installed, you can
+run the heavy compute there instead of on this laptop — the board still has to be
+programmed from wherever it's physically plugged in, so that step always stays local:
+
+```
+make remote-build PROJ=hello_world BOARD=zcu104   # Vivado runs on the remote machine
+make program PROJ=hello_world BOARD=zcu104        # still local -- this is where the board is
+```
+
+The remote build runs inside a `tmux` session on the far end and streams its log
+back live. If your connection drops or you Ctrl-C, the build itself keeps running —
+just re-run the same `make remote-build` command and it reattaches instead of
+starting over. Defaults to a specific machine on our Tailscale network; override
+with `REMOTE_HOST` / `REMOTE_USER` / `REMOTE_DIR` env vars if you're pointing it
+somewhere else (see `scripts/remote_build.sh` for details).
 
 ## Adding a new board
 
 1. `mkdir -p boards/<board>/{xdc,docs}`
 2. Drop the board's user guide/datasheet PDF into `boards/<board>/docs/`
-3. Write `boards/<board>/board.tcl` with `set board_part_fpga <part>`
-4. Add one `.xdc` file per fixed net group (clocks, LEDs, buttons, ...) under `boards/<board>/xdc/`
-5. Verify every pin against real hardware before trusting it (see "Verifying pins"
-   below) and keep an `errata.md` of anything the manual gets wrong
+3. Write `boards/<board>/board.tcl` — at minimum, `set board_part_fpga <part-number>`
+4. Add pin constraints under `boards/<board>/xdc/` — one `.xdc` file per group of
+   related pins (clocks, LEDs, buttons, ...)
 
-## Verifying pins on a new board
+**Before typing a single pin number from a PDF: don't.** Board manuals get things
+wrong more often than you'd expect — see `boards/zcu104/docs/errata.md` for a real
+example that cost hours here (the manual listed the wrong pins for the board's
+clock, and every other part of the design was correct). The reliable order of
+trust:
 
-Manuals can be wrong, and not just as a one-off typo — UG1267 for the zcu104 has
-*multiple* known text/schematic mismatches (clock pins, DDR4 SODIMM pins, FMC bank
-assignments) that were never fixed in the PDF across its whole revision history. See
-`boards/zcu104/docs/errata.md` for the one that cost hours here. **Don't hand-transcribe
-pin tables from a PDF as ground truth.** In order of trust:
-
-1. **Official board_part files first.** Xilinx publishes Apache-2.0 board definitions
-   (schematic-derived) at `github.com/Xilinx/XilinxBoardStore` for most eval boards.
-   Vendor the relevant `boards/<board>/<version>/` directory into
-   `boards/<board>/vendor/board_files/<board>/`, register it in `board.tcl` via
-   `board.repoPaths`, and query it with `scripts/lookup_pin.sh <board> <net-name>`
-   before typing anything out of a manual by hand. This is real schematic data, not
-   prose that can go stale.
-2. If a net isn't covered by the official board interfaces (common for pins not tied
-   to a named component, e.g. general-purpose clocks) — cross-check the manual's pin
-   table against a *rendered image* of the actual PDF page (text extraction can
-   misalign columns), then web-search `"<board name>" "<net name>" xdc` — community
-   constraint files and vendor support-forum threads often have the known correction
-   already documented.
-3. Bring up new pins incrementally and prove each one independently regardless of
-   source:
-   - LEDs/outputs: drive them to a constant value first, no clock involved.
-   - A clock: latch it into a register on an edge you control (e.g. a pushbutton)
-     and read the value back — if repeated latches at different times always read
-     the same, the clock isn't toggling, regardless of what Vivado/DRC/bitgen say.
-4. A clean `write_bitstream` and successful `program_hw_devices` only prove the
-   bitstream loaded — they prove nothing about whether the physical net you
-   constrained actually carries the signal you think it does.
-
-## Adding a new project
-
-`make new PROJ=<name>` scaffolds `projects/<name>/rtl/<name>.v` and a stub
-`.xdc`. Board-level pins (clock, LEDs, etc.) are pulled in automatically at
-build time — only add pins here that are specific to this design.
+1. **Official `board_part` files, if the vendor publishes them** (Xilinx does, at
+   `github.com/Xilinx/XilinxBoardStore`, Apache-2.0). These are generated from the
+   actual schematic, not prose that can go stale. `boards/zcu104/` has one vendored
+   in and wired up — copy that pattern for a new board, and look nets up with:
+   ```
+   scripts/lookup_pin.sh <board> <net-name>
+   ```
+2. If a net isn't in the official files (common for general-purpose pins not tied
+   to a named component), cross-check the manual against a *rendered image* of the
+   actual PDF page — text extraction can misalign table columns — then web-search
+   `"<board name>" "<net name>" xdc`. Community-corrected constraint files and
+   vendor support-forum threads often already document the exact mistake.
+3. Whatever the source, prove new pins against real hardware before trusting them:
+   drive outputs to a constant value first (no clock involved), and for a clock,
+   latch it into a register on an edge you fully control (like a pushbutton) and
+   read it back — a signal that never changes no matter when you sample it isn't
+   toggling, regardless of what a clean `write_bitstream` and successful
+   `program_hw_devices` seem to say.
+4. Write down whatever you find in `boards/<board>/docs/errata.md`, same format as
+   the zcu104 one — so the next project on this board doesn't rediscover it.
 
 ## Current boards
 
 - **zcu104** — Xilinx Zynq UltraScale+ MPSoC eval board (`xczu7ev-ffvc1156-2-e`).
-  See `boards/zcu104/docs/pinout_notes.md` for the verified pin/net reference and
-  `boards/zcu104/docs/errata.md` for manual mistakes and hardware gotchas already
-  discovered on this board (boot mode switch, wrong CLK_125 pins in UG1267, LVDS
-  termination).
+  `boards/zcu104/docs/pinout_notes.md` has the verified pin reference;
+  `boards/zcu104/docs/errata.md` has the hardware/manual gotchas already found on
+  this board (worth reading before touching a new pin on it).
 
 ## Current projects
 
-- **hello_world** — blinks the 4 GPIO LEDs in a binary counter pattern off the
-  board's 125 MHz clock.
+- **hello_world** — the walkthrough example above: blinks the 4 GPIO LEDs in a
+  binary counter pattern off the board's 125 MHz clock.
