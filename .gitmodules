@@ -1,3 +1,3 @@
 [submodule "nanoriscv"]
 	path = nanoriscv
-	url = /home/karthikeya/nanocodex/nanoriscv
+	url = https://github.com/GaragaKarthikeya/nanoriscv.git
