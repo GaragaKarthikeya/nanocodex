@@ -6,8 +6,8 @@
 > **Looking for the RISC-V core?** It lives in
 > [nanoriscv](https://github.com/GaragaKarthikeya/nanoriscv) — an emulator that
 > boots Linux and passes 236/236 of the official riscv-tests — and is tracked
-> here as a submodule. This repository is the FPGA workstation it will run on.
-> Clone with `--recursive`.
+> here as a submodule, with the pointer kept current automatically. This
+> repository is the FPGA workstation it will run on. Clone with `--recursive`.
 
 A personal FPGA research workstation. This isn't a one-off project — it's meant to
 keep growing: more boards, more projects, eventually RowHammer / near-memory-compute

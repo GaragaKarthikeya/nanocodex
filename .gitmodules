@@ -1,3 +1,4 @@
 [submodule "nanoriscv"]
 	path = nanoriscv
 	url = https://github.com/GaragaKarthikeya/nanoriscv.git
+	branch = main

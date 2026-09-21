@@ -49,3 +49,26 @@ submodule. Emulator and RTL changes belong there; board bring-up, constraints
 and build automation belong here.
 
 Clone with `--recursive`, or run `git submodule update --init` afterwards.
+
+### How the pointer stays current
+
+A submodule pointer is a recorded SHA — git has no floating reference, so
+"track the latest" has to mean "something commits the new SHA promptly". Here
+that is automatic: every push to nanoriscv's `main` pings this repository
+(`notify-nanocodex.yml` there, `sync-nanoriscv.yml` here), which bumps the
+pointer and commits it, usually within a minute. A daily schedule catches
+anything the ping misses.
+
+The recorded SHA is still a real pin, so checking out an old nanocodex commit
+recursively gets you the nanoriscv it was built against. Only the tip moves on
+its own.
+
+To move it yourself:
+
+```
+make sync-nanoriscv
+```
+
+Both the workflow and that target refuse to move the pointer **backward** —
+they require the old SHA to be an ancestor of the new one. Without that check,
+a force-push or a revert in nanoriscv would silently rewind this repository.

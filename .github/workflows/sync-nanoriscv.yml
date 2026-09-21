@@ -1,0 +1,81 @@
+name: Sync nanoriscv
+
+# The submodule pointer is a recorded SHA -- git has no floating reference, so
+# "track the latest" has to mean "something commits the new SHA promptly".
+# That something is this workflow.
+on:
+  # nanoriscv pings this on every push to its main (see notify-nanocodex.yml
+  # over there). This is the path that does the actual work.
+  repository_dispatch:
+    types: [nanoriscv-updated]
+  # A fallback, in case a dispatch is ever missed or the token lapses.
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-nanoriscv
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: bump the submodule pointer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Move the pointer to nanoriscv's main
+        id: bump
+        run: |
+          before=$(git rev-parse HEAD:nanoriscv)
+          git submodule update --remote --force nanoriscv
+          after=$(git -C nanoriscv rev-parse HEAD)
+
+          echo "before=$before" >> "$GITHUB_OUTPUT"
+          echo "after=$after" >> "$GITHUB_OUTPUT"
+
+          if [ "$before" = "$after" ]; then
+            echo "already current at ${before:0:7}"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Only ever move forward. --remote follows whatever main points at,
+          # so a force-push or a revert over there could otherwise rewind this
+          # repository silently.
+          if ! git -C nanoriscv merge-base --is-ancestor "$before" "$after"; then
+            echo "refusing to move: ${before:0:7} is not an ancestor of ${after:0:7}" >&2
+            echo "nanoriscv main was rewritten or rewound -- bump this by hand" >&2
+            exit 1
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "subject=$(git -C nanoriscv log -1 --pretty=%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Commit
+        if: steps.bump.outputs.changed == 'true'
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add nanoriscv
+          git commit -m "Bump nanoriscv to ${AFTER:0:7}" \
+                     -m "$SUBJECT" \
+                     -m "https://github.com/GaragaKarthikeya/nanoriscv/compare/${BEFORE:0:7}...${AFTER:0:7}"
+          git push
+        env:
+          BEFORE: ${{ steps.bump.outputs.before }}
+          AFTER: ${{ steps.bump.outputs.after }}
+          SUBJECT: ${{ steps.bump.outputs.subject }}
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.bump.outputs.changed }}" = "true" ]; then
+            echo "Bumped nanoriscv to ${{ steps.bump.outputs.after }}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "nanoriscv already current" >> "$GITHUB_STEP_SUMMARY"
+          fi
