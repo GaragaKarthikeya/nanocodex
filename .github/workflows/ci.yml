@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Synthesis needs Vivado, which is neither installable nor licensable in CI,
+  # so the bitstream path cannot be built here. What can be checked is the
+  # automation around it -- which is where the portability bugs actually live.
+  scripts:
+    name: shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck scripts/*.sh
+
+      - name: Parse check
+        run: for f in scripts/*.sh; do bash -n "$f"; done
+
+      # The remote-build scripts used to default to one specific workstation.
+      # They now require REMOTE_HOST and REMOTE_USER, and this keeps it that
+      # way: a hardcoded hostname is both a portability bug and a privacy leak.
+      - name: Refuse to run without a configured remote
+        run: |
+          set +e
+          out=$(env -u REMOTE_HOST -u REMOTE_USER bash scripts/remote_status.sh projects/hello_world 2>&1)
+          code=$?
+          set -e
+          echo "$out"
+          if [ "$code" -eq 0 ]; then
+            echo "expected a non-zero exit without REMOTE_HOST/REMOTE_USER" >&2
+            exit 1
+          fi
+          echo "$out" | grep -q REMOTE_HOST
+
+  scaffold:
+    name: project scaffolding
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # `make new` is the first thing a newcomer runs, so a break here is the
+      # worst kind: it lands before they have any context to debug it.
+      - name: Scaffold a project
+        run: |
+          make new PROJ=ci_smoke
+          test -f projects/ci_smoke/rtl/ci_smoke.v
+          test -f projects/ci_smoke/ci_smoke.xdc
+          cat projects/ci_smoke/rtl/ci_smoke.v

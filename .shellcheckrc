@@ -1,0 +1,7 @@
+# SC2029: "this expands on the client side".
+#
+# In scripts/remote_build.sh and remote_status.sh that is the intent, not a
+# bug. The paths and tmux session names sent over ssh are derived from local
+# configuration (REMOTE_DIR, the project directory), so they must be resolved
+# here and sent as literals -- the remote shell has no idea what they are.
+disable=SC2029

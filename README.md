@@ -1,5 +1,14 @@
 # nanocodex
 
+[![CI](https://github.com/GaragaKarthikeya/nanocodex/actions/workflows/ci.yml/badge.svg)](https://github.com/GaragaKarthikeya/nanocodex/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
+> **Looking for the RISC-V core?** It lives in
+> [nanoriscv](https://github.com/GaragaKarthikeya/nanoriscv) — an emulator that
+> boots Linux and passes 236/236 of the official riscv-tests — and is tracked
+> here as a submodule. This repository is the FPGA workstation it will run on.
+> Clone with `--recursive`.
+
 A personal FPGA research workstation. This isn't a one-off project — it's meant to
 keep growing: more boards, more projects, eventually RowHammer / near-memory-compute
 work. This doc walks through how it's organized and how to actually use it, in the
@@ -85,9 +94,19 @@ make program PROJ=hello_world BOARD=zcu104        # still local -- this is where
 The remote build runs inside a `tmux` session on the far end and streams its log
 back live. If your connection drops or you Ctrl-C, the build itself keeps running —
 just re-run the same `make remote-build` command and it reattaches instead of
-starting over. Defaults to a specific machine on our Tailscale network; override
-with `REMOTE_HOST` / `REMOTE_USER` / `REMOTE_DIR` env vars if you're pointing it
-somewhere else (see `scripts/remote_build.sh` for details).
+starting over.
+
+Point it at your own build machine first — the scripts require this and will
+tell you so if you forget:
+
+```
+export REMOTE_HOST=your-build-machine
+export REMOTE_USER=your-username
+```
+
+`REMOTE_DIR` (default `nanocodex`) and `REMOTE_VIVADO_SETTINGS` are optional;
+see `scripts/remote_build.sh` for details. The remote needs Vivado, `tmux` and
+`rsync`, plus key-based ssh access — nothing here ever prompts for a password.
 
 ## Watching a build's progress
 
@@ -225,3 +244,15 @@ different stages.
 for its exact spec, and get its built-in memory test passing — that's the proof
 the PL-side memory path works at all, before any RowHammer- or compute-specific
 RTL gets built on top of it.
+
+## License
+
+Apache-2.0 — see [LICENSE](LICENSE).
+
+The vendored Xilinx board files under
+`boards/zcu104/vendor/board_files/` are Xilinx's own, redistributed under the
+same licence; their copyright notice is kept alongside them.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).

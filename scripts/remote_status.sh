@@ -12,8 +12,25 @@ fi
 
 proj_dir="$1"
 
-remote_host="${REMOTE_HOST:-redhatacademy23}"
-remote_user="${REMOTE_USER:-digital3}"
+if [ -z "${REMOTE_HOST:-}" ] || [ -z "${REMOTE_USER:-}" ]; then
+    cat >&2 <<'MSG'
+Remote builds need a host to build on. Set these first:
+
+    export REMOTE_HOST=your-build-machine   # hostname or IP reachable over ssh
+    export REMOTE_USER=your-username
+
+Optional:
+    export REMOTE_DIR=nanocodex             # checkout path on the remote (default: nanocodex)
+    export REMOTE_VIVADO_SETTINGS=2026.1/Vivado/settings64.sh
+
+The remote needs Vivado, tmux and rsync installed, and you need key-based ssh
+access to it (this script never prompts for a password).
+MSG
+    exit 1
+fi
+
+remote_host="$REMOTE_HOST"
+remote_user="$REMOTE_USER"
 remote_dir="${REMOTE_DIR:-nanocodex}"
 remote="${remote_user}@${remote_host}"
 

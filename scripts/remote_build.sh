@@ -12,10 +12,10 @@
 #
 # Usage: scripts/remote_build.sh <proj_dir> <board_dir> <top>
 # Env vars (with defaults for the current remote workstation):
-#   REMOTE_HOST     (default: redhatacademy23)
-#   REMOTE_USER     (default: digital3)
-#   REMOTE_VIVADO_SETTINGS (default: ~/2026.1/Vivado/settings64.sh on the remote)
-#   REMOTE_DIR      (default: ~/nanocodex on the remote)
+#   REMOTE_HOST     (required) hostname or IP of the build machine
+#   REMOTE_USER     (required) username on that machine
+#   REMOTE_VIVADO_SETTINGS (default: 2026.1/Vivado/settings64.sh on the remote)
+#   REMOTE_DIR      (default: nanocodex on the remote)
 set -euo pipefail
 
 if [ $# -ne 3 ]; then
@@ -27,8 +27,25 @@ proj_dir="$1"
 board_dir="$2"
 top="$3"
 
-remote_host="${REMOTE_HOST:-redhatacademy23}"
-remote_user="${REMOTE_USER:-digital3}"
+if [ -z "${REMOTE_HOST:-}" ] || [ -z "${REMOTE_USER:-}" ]; then
+    cat >&2 <<'MSG'
+Remote builds need a host to build on. Set these first:
+
+    export REMOTE_HOST=your-build-machine   # hostname or IP reachable over ssh
+    export REMOTE_USER=your-username
+
+Optional:
+    export REMOTE_DIR=nanocodex             # checkout path on the remote (default: nanocodex)
+    export REMOTE_VIVADO_SETTINGS=2026.1/Vivado/settings64.sh
+
+The remote needs Vivado, tmux and rsync installed, and you need key-based ssh
+access to it (this script never prompts for a password).
+MSG
+    exit 1
+fi
+
+remote_host="$REMOTE_HOST"
+remote_user="$REMOTE_USER"
 remote_vivado_settings="${REMOTE_VIVADO_SETTINGS:-2026.1/Vivado/settings64.sh}"
 remote_dir="${REMOTE_DIR:-nanocodex}"
 remote="${remote_user}@${remote_host}"
@@ -53,6 +70,10 @@ else
         ./ "$remote:$remote_dir/"
 
     echo "==> Launching build on $remote_host ($(ssh "$remote" nproc) cores) in tmux session '$session'"
+    # The heredoc is deliberately unquoted: every variable in the runner
+    # script below is local configuration that has to be baked in here, since
+    # the remote shell never sees this script's environment.
+    # shellcheck disable=SC2087
     ssh "$remote" "mkdir -p $remote_dir/$proj_dir/build && cat > $remote_runner" <<EOF
 #!/bin/bash
 source $remote_vivado_settings
